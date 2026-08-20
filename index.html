@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>CameraEye — Monitoramento IP</title>
+<meta name="description" content="Monitoramento remoto de câmeras IP" />
+<meta name="theme-color" content="#0A0908" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="CameraEye" />
+<link rel="icon" href="./icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0A0908;
+    --surface: #17130E;
+    --surface-2: #211A12;
+    --border: #2E2418;
+    --amber: #FFB000;
+    --amber-dim: #7A5400;
+    --amber-glow: rgba(255, 176, 0, 0.25);
+    --text: #F3EEE4;
+    --text-dim: #A69A87;
+    --online: #3ECF6E;
+    --offline: #FF4D4D;
+    --connecting: #FFB000;
+    --radius: 14px;
+    --font-display: "JetBrains Mono", monospace;
+    --font-body: "Inter", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(255,176,0,0.06), transparent 40%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+
+  #app { max-width: 480px; margin: 0 auto; min-height: 100dvh; padding: 0 16px 32px; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 12px;
+    background: linear-gradient(var(--bg) 70%, transparent);
+    font-family: var(--font-display); letter-spacing: 0.04em; font-size: 15px;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--amber); font-size: 17px; }
+  .brand .ic { color: var(--amber); }
+
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center;
+  }
+
+  .ic { width: 18px; height: 18px; }
+
+  .actions-row { display: flex; gap: 10px; margin: 14px 0 22px; }
+  .actions-row.center { justify-content: center; }
+
+  .btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 14px; border-radius: 12px; font-family: var(--font-body); font-weight: 600;
+    font-size: 14px; border: 1px solid transparent; cursor: pointer; transition: transform .08s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-amber { background: var(--amber); color: #191300; box-shadow: 0 0 0 1px var(--amber-dim), 0 8px 20px -8px var(--amber-glow); }
+  .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
+  .btn-ghost { background: var(--surface); border-color: var(--border); color: var(--text-dim); flex: 0 0 auto; padding: 10px; }
+  .btn-sm { padding: 9px 10px; font-size: 12.5px; }
+
+  .section-title {
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 12px; color: var(--text-dim); margin: 22px 0 10px;
+  }
+
+  .cam-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .cam-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .cam-card-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; }
+  .cam-name { font-weight: 600; font-size: 14.5px; }
+
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); font-family: var(--font-display); }
+  .status i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .st-online i { background: var(--online); box-shadow: 0 0 8px var(--online); }
+  .st-offline i { background: var(--offline); }
+  .st-connecting i { background: var(--connecting); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  .cam-preview {
+    position: relative; height: 160px; background: #0D0B08;
+    display: flex; align-items: center; justify-content: center; color: #3A2F1E;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .cam-preview .ic { width: 34px; height: 34px; }
+  .scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(255,176,0,0.03) 0px, transparent 2px, transparent 4px);
+  }
+  .timestamp {
+    position: absolute; bottom: 8px; left: 10px; font-family: var(--font-display);
+    font-size: 10px; color: var(--amber); opacity: 0.7; letter-spacing: 0.06em;
+  }
+
+  .cam-card-actions { display: flex; gap: 8px; padding: 12px 14px; }
+
+  .empty { text-align: center; padding: 40px 12px; color: var(--text-dim); }
+  .empty p:first-child { color: var(--text); font-weight: 600; margin-bottom: 6px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 14.5px; font-family: var(--font-display); color: var(--amber); }
+  .card.center { text-align: center; }
+
+  .dim { color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+  .dim.small { font-size: 11.5px; }
+  .center { text-align: center; }
+
+  .form { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+  .form label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .form input, .form select {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 12px; color: var(--text); font-size: 14px; font-family: var(--font-body);
+  }
+  .form input:focus, .form select:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+  #discover-results { margin-top: 10px; }
+
+  .live-stage {
+    position: relative; width: 100%; aspect-ratio: 16/9; background: #000;
+    border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); margin-top: 12px;
+  }
+  .live-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .live-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(10,9,8,0.85); text-align: center; padding: 20px; font-size: 13.5px; color: var(--text-dim);
+  }
+  .live-overlay.hidden { display: none; }
+  .live-hud { position: absolute; top: 10px; right: 10px; }
+  .badge {
+    background: rgba(10,9,8,0.7); border: 1px solid var(--amber-dim); color: var(--amber);
+    font-family: var(--font-display); font-size: 11px; padding: 4px 8px; border-radius: 8px;
+  }
+  .live-controls { display: flex; gap: 8px; margin-top: 12px; }
+
+  .scan-stage {
+    position: relative; width: 100%; aspect-ratio: 1/1; background: #000; border-radius: var(--radius);
+    overflow: hidden; border: 1px solid var(--border); margin-top: 12px;
+  }
+  .scan-stage video { width: 100%; height: 100%; object-fit: cover; }
+  .scan-frame {
+    position: absolute; inset: 15%; border: 2px solid var(--amber); border-radius: 16px;
+    box-shadow: 0 0 0 999px rgba(0,0,0,0.45);
+  }
+
+  .share-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border); }
+  .share-row:first-child { border-top: none; }
+  .share-row.revoked { opacity: 0.45; }
+
+  #qr-result { margin-top: 14px; text-align: center; }
+  #qr-result canvas { border-radius: 10px; }
+
+  ::selection { background: var(--amber-glow); }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- CDNs: geração e leitura de QR Code -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+
+  <script src="./js/storage.js"></script>
+  <script src="./js/adapters.js"></script>
+  <script src="./js/qr.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
